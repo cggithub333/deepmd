@@ -385,8 +385,12 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				path = a.Reader.File.Path
 			}
 			if path != "" {
+				absPath, err := filepath.Abs(path)
+				if err == nil {
+					path = absPath
+				}
 				_ = CopyToClipboard(path)
-				a.Notification = fmt.Sprintf(" 󰅍 Copied path: %s ", filepath.Base(path))
+				a.Notification = fmt.Sprintf(" 󰅍 Copied path: %s ", path)
 			}
 			return a, nil
 

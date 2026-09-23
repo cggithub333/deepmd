@@ -356,18 +356,18 @@ func TestApp_ClipboardCopy(t *testing.T) {
 	_ = os.WriteFile("/tmp/deepmd-test.md", []byte("# Header\nContent line"), 0644)
 	app := NewApp(files, "/tmp")
 
-	// 1. Ctrl+P in DualPane copies path
+	// 1. Ctrl+P in DualPane copies full absolute path
 	updatedP, _ := app.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
 	appP := updatedP.(App)
-	if !strings.Contains(appP.Notification, "Copied path") {
-		t.Fatalf("expected notification to contain 'Copied path', got %q", appP.Notification)
+	if !strings.Contains(appP.Notification, "/tmp/deepmd-test.md") {
+		t.Fatalf("expected notification to contain full path '/tmp/deepmd-test.md', got %q", appP.Notification)
 	}
 
-	// Also verify Ctrl+Y copies path
+	// Also verify Ctrl+Y copies full path
 	updatedY, _ := app.Update(tea.KeyMsg{Type: tea.KeyCtrlY})
 	appY := updatedY.(App)
-	if !strings.Contains(appY.Notification, "Copied path") {
-		t.Fatalf("expected notification to contain 'Copied path', got %q", appY.Notification)
+	if !strings.Contains(appY.Notification, "/tmp/deepmd-test.md") {
+		t.Fatalf("expected notification to contain full path '/tmp/deepmd-test.md', got %q", appY.Notification)
 	}
 
 	// 2. Ctrl+A copies content

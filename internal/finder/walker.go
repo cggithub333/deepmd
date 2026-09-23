@@ -101,9 +101,13 @@ func WalkMarkdownFiles(opts WalkOptions) ([]model.FileInfo, error) {
 				if err != nil {
 					return nil
 				}
+				absPath, err := filepath.Abs(path)
+				if err != nil {
+					absPath = path
+				}
 				mu.Lock()
 				files = append(files, model.FileInfo{
-					Path:    path,
+					Path:    absPath,
 					RelPath: relPath,
 					Depth:   depth,
 					Size:    info.Size(),
