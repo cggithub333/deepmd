@@ -2,6 +2,8 @@ package tui
 
 import (
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -47,9 +49,10 @@ type App struct {
 	State           AppState
 	Focus           FocusedPane
 	Rescouting      bool
-	ResizeMode      bool
+	LeaderMode      bool
 	DraggingDivider bool
 	CustomLeftWidth int
+	Notification    string
 	Config          config.Config
 	List            ListPane
 	Preview         PreviewPane
@@ -86,9 +89,10 @@ func NewAppWithConfig(files []model.FileInfo, root string, cfg config.Config) Ap
 		State:           StateDualPane,
 		Focus:           FocusList,
 		Rescouting:      false,
-		ResizeMode:      false,
+		LeaderMode:      false,
 		DraggingDivider: false,
 		CustomLeftWidth: layout.LeftWidth,
+		Notification:    "",
 		Config:          cfg,
 		List:            list,
 		Preview:         preview,
@@ -156,7 +160,7 @@ func (a *App) updateLayoutWithWidth(leftWidth int) {
 func (a *App) AdjustSplit(delta int) tea.Cmd {
 	current := a.Layout.LeftWidth
 	if current <= 0 {
-		current = int(float64(a.Layout.TotalWidth) * 0.35)
+		current = int(float64(a.Layout.TotalWidth) * 0.60)
 	}
 	a.updateLayoutWithWidth(current + delta)
 
@@ -261,15 +265,52 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case tea.KeyMsg:
-		// Tmux-like leader chord: Alt+Q toggles resize mode
+		// Clear previous notification on any new keypress (except when generating a new one)
+		if a.Notification != "" && msg.String() != "ctrl+c" && msg.String() != "ctrl+a" {
+			a.Notification = ""
+		}
+
+		// Leader Key: Alt+Q toggles Leader Mode
 		if msg.String() == "alt+q" || msg.String() == "alt+Q" {
 			if a.State == StateDualPane {
-				a.ResizeMode = !a.ResizeMode
+				a.LeaderMode = !a.LeaderMode
 				return a, nil
 			}
 		}
 
-		// Direct resize shortcuts in DualPane
+		// Active Leader Mode controls
+		if a.State == StateDualPane && a.LeaderMode {
+			switch msg.String() {
+			// Leader + left / h: switch view to File Explorer
+			case "left", "h":
+				a.Focus = FocusList
+				a.List.TextInput.Focus()
+				a.LeaderMode = false
+				return a, nil
+
+			// Leader + right / l: switch view to Preview Box
+			case "right", "l":
+				a.Focus = FocusPreview
+				a.List.TextInput.Blur()
+				a.LeaderMode = false
+				return a, nil
+
+			// Leader + Alt+Left / Alt+h: resize divider left (narrows list, widens preview)
+			case "alt+left", "alt+h":
+				return a, a.AdjustSplit(-2)
+
+			// Leader + Alt+Right / Alt+l: resize divider right (widens list, narrows preview)
+			case "alt+right", "alt+l":
+				return a, a.AdjustSplit(2)
+
+			// Esc / Enter / q: exit LeaderMode
+			case "esc", "enter", "q":
+				a.LeaderMode = false
+				return a, nil
+			}
+		}
+
+		// Direct resize shortcuts anytime in DualPane
 		if a.State == StateDualPane {
 			switch msg.String() {
 			case "alt+left", "alt+h":
@@ -279,21 +320,40 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 		}
 
-		// Active Resize Mode controls
-		if a.State == StateDualPane && a.ResizeMode {
-			switch msg.String() {
-			case "left", "h":
-				return a, a.AdjustSplit(-2)
-			case "right", "l":
-				return a, a.AdjustSplit(2)
-			case "esc", "enter", "q":
-				a.ResizeMode = false
-				return a, nil
-			}
-		}
-
 		switch msg.String() {
 		case "ctrl+c":
+			// Ctrl+C copies filepath ONLY when focusing on the file explorer
+			if a.State == StateDualPane && a.Focus == FocusList {
+				selected := a.List.SelectedFile()
+				if selected != nil {
+					_ = CopyToClipboard(selected.Path)
+					a.Notification = fmt.Sprintf(" 󰅍 Copied path: %s ", filepath.Base(selected.Path))
+				}
+				return a, nil
+			}
+			return a, tea.Quit
+
+		case "ctrl+a":
+			// Ctrl+A copies raw markdown file content (for both file explorer focus and preview focus)
+			var targetPath string
+			if a.State == StateDualPane {
+				selected := a.List.SelectedFile()
+				if selected != nil {
+					targetPath = selected.Path
+				}
+			} else if a.State == StateReader && a.Reader.File != nil {
+				targetPath = a.Reader.File.Path
+			}
+			if targetPath != "" {
+				data, err := os.ReadFile(targetPath)
+				if err == nil {
+					_ = CopyToClipboard(string(data))
+					a.Notification = fmt.Sprintf(" 󰅍 Copied content: %s (%d bytes) ", filepath.Base(targetPath), len(data))
+				}
+			}
+			return a, nil
+
+		case "ctrl+q":
 			return a, tea.Quit
 
 		case "ctrl+r":
@@ -312,21 +372,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 					a.Focus = FocusPreview
 					a.List.TextInput.Blur()
 					a.Preview.StartSearch()
-				}
-				return a, nil
-			}
-
-		case "tab", "shift+tab":
-			if a.State == StateDualPane {
-				if a.Preview.Searching {
-					a.Preview.StopSearch()
-				}
-				if a.Focus == FocusList {
-					a.Focus = FocusPreview
-					a.List.TextInput.Blur()
-				} else {
-					a.Focus = FocusList
-					a.List.TextInput.Focus()
 				}
 				return a, nil
 			}
@@ -362,7 +407,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "enter":
 			if a.State == StateDualPane {
-				// If preview search is active, Enter cycles next match
 				if a.Focus == FocusPreview && a.Preview.Searching {
 					a.Preview.NextMatch()
 					return a, nil
@@ -404,7 +448,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return a, prevCmd
 		}
 
-		// When in Preview and user presses '/', open in-preview grep
 		if keyMsg, ok := msg.(tea.KeyMsg); ok && keyMsg.String() == "/" {
 			a.Preview.StartSearch()
 			return a, nil
@@ -447,16 +490,26 @@ func (a App) View() string {
 	infoBadge := StatusStyle.Render(fmt.Sprintf("[%d files]", len(a.Files)))
 	topHeader := lipgloss.JoinHorizontal(lipgloss.Top, title, infoBadge)
 
-	if a.ResizeMode {
-		resizeBadge := ResizeHeaderStyle.Render(" 󰩨 RESIZE MODE: ←/→ or Alt+←/→ to slide divider │ Enter/Esc to exit ")
-		topHeader = lipgloss.JoinHorizontal(lipgloss.Top, title, resizeBadge)
+	if a.Notification != "" {
+		notifBadge := lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#000000")).
+			Background(lipgloss.Color("#00FFAF")).
+			Padding(0, 1).
+			Render(a.Notification)
+		topHeader = lipgloss.JoinHorizontal(lipgloss.Top, topHeader, notifBadge)
+	}
+
+	if a.LeaderMode {
+		leaderBadge := ResizeHeaderStyle.Render(" 󰩨 LEADER: [←/→] Switch View │ [Alt+←/→] Resize │ [Esc] Exit ")
+		topHeader = lipgloss.JoinHorizontal(lipgloss.Top, topHeader, leaderBadge)
 	}
 	sb.WriteString(topHeader)
 	sb.WriteString("\n")
 
 	// Main Dual-Pane Section with dynamic focus borders
 	var leftBorder, rightBorder lipgloss.Style
-	if a.ResizeMode {
+	if a.LeaderMode {
 		leftBorder = ResizeBorderStyle
 		rightBorder = ResizeBorderStyle
 	} else if a.Focus == FocusPreview {
@@ -476,20 +529,20 @@ func (a App) View() string {
 
 	// Bottom Status / Help Bar
 	var helpText string
-	if a.ResizeMode {
-		helpText = StatusStyle.Render(" [←/→ or Alt+←/→] Resize Divider │ [Enter/Esc] Done Resizing ")
+	if a.LeaderMode {
+		helpText = StatusStyle.Render(" [←/→] Switch Pane │ [Alt+←/→] Resize Divider │ [Enter/Esc] Done ")
 	} else if a.Focus == FocusPreview {
 		if a.Preview.Searching {
 			helpText = StatusStyle.Render(" [Enter/n] Next match │ [N] Prev match │ [Esc] Close search ")
 		} else {
-			helpText = StatusStyle.Render(" [Ctrl+F or /] Grep in Preview │ [j/k/d/u] Scroll Preview │ [Tab/Esc] Back to List │ [Enter] Read Fullscreen │ [q] Back ")
+			helpText = StatusStyle.Render(" [Ctrl+F or /] Grep Preview │ [Ctrl+A] Copy Content │ [j/k/d/u] Scroll │ [Esc/q] Back to List ")
 		}
 	} else {
 		rescoutNotice := ""
 		if a.Rescouting {
 			rescoutNotice = " [Rescouting...] │"
 		}
-		helpText = StatusStyle.Render(fmt.Sprintf(" [Tab] Focus Preview │ [Ctrl+F] Grep in Preview │ [Alt+Q] Resize │ [↑/↓] Move │ [Enter] Read │ [Ctrl+R] Rescan %s│ [q] Quit ", rescoutNotice))
+		helpText = StatusStyle.Render(fmt.Sprintf(" [Alt+Q then ←/→] Switch View │ [Alt+Q then Alt+←/→] Resize │ [Ctrl+C] Copy Path │ [Ctrl+A] Copy Content │ [Ctrl+F] Grep %s│ [q] Quit ", rescoutNotice))
 	}
 	sb.WriteString(helpText)
 

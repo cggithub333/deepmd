@@ -87,21 +87,24 @@ deepmd --enable-mouse --mouse-delta 1
 | Key / Gesture | Action |
 | :--- | :--- |
 | **Mouse Click & Drag Divider** | Press on the middle border between List and Preview to slide the split left <-> right |
-| `Alt+q` / `Alt+Q` | Tmux-like leader chord to toggle **Resize Mode** (use `←`/`→` or `h`/`l` to adjust width, `Enter`/`Esc` to exit) |
-| `Alt+←` / `Alt+h` | Nudge divider left (shrinks file list, widens preview box) |
-| `Alt+→` / `Alt+l` | Nudge divider right (widens file list, narrows preview box) |
-| `Ctrl+f` | Open / close in-preview grep search box on the top right of the Preview box |
+| `Alt+q` / `Alt+Q` | Tmux-like leader chord to toggle **Leader Mode** (`←`/`→` to switch view, `Alt+←`/`Alt+→` to resize, `Enter`/`Esc` to exit) |
+| `Leader` then `←` / `h` | Switch active focus to **File Explorer** |
+| `Leader` then `→` / `l` | Switch active focus to **Preview Box** |
+| `Leader` then `Alt+←` / `Alt+h` | Nudge divider left (shrinks file list, widens preview box) |
+| `Leader` then `Alt+→` / `Alt+l` | Nudge divider right (widens file list, narrows preview box) |
+| `Ctrl+c` | **Copy Filepath** to system clipboard (when focusing on the file explorer) |
+| `Ctrl+a` | **Copy Full Content** to system clipboard (works for both file explorer and preview focus) |
+| `Ctrl+f` | Open / close in-preview grep search box on the top right of Preview box |
 | `/` | Open in-preview grep when Preview is focused |
-| `Enter` / `n` | Next match in preview (while search box is open) |
-| `N` / `Shift+Enter` | Previous match in preview (while search box is open) |
-| `Tab` / `Shift+Tab` | Toggle active focus between File Search and Preview Pane |
+| `Enter` / `n` | Jump to next match in preview (while search box is open) |
+| `N` / `Shift+Enter` | Jump to previous match in preview (while search box is open) |
 | `↑` / `k` | Move cursor up in file list (or scroll up when Preview focused) |
 | `↓` / `j` | Move cursor down in file list (or scroll down when Preview focused) |
 | `d` / `u` | Scroll half-page down / up when Preview focused |
 | `Enter` | Open selected file in full-screen reader |
 | `Ctrl+r` | Rescan directory and refresh ScoutCache (`~/.deepmd/<timestamp>/md-scout.md`) |
 | `Esc` / `q` | Close preview search box, return focus to file list, or exit deepmd |
-| `Ctrl+c` | Exit deepmd immediately |
+| `Ctrl+q` | Exit deepmd immediately |
 
 > [!NOTE]
 > **Trackpad / Wheel Scroll Guard**: Wheel and 2-finger trackpad scrolling are strictly silenced in Dual-Pane mode so inertia gestures never uncontrollably traverse or jump files in the explorer list.

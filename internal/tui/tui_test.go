@@ -1,6 +1,7 @@
 package tui
 
 import (
+	"os"
 	"strings"
 	"testing"
 
@@ -143,7 +144,7 @@ func TestApp_InitialRenderWithoutWindowSizeMsg(t *testing.T) {
 	}
 }
 
-func TestApp_TabFocusToggleAndPreviewScroll(t *testing.T) {
+func TestApp_LeaderModeViewSwitchAndResize(t *testing.T) {
 	files := []model.FileInfo{
 		{RelPath: "README.md", Path: "/tmp/README.md"},
 	}
@@ -153,32 +154,43 @@ func TestApp_TabFocusToggleAndPreviewScroll(t *testing.T) {
 		t.Fatalf("expected initial FocusList, got %v", app.Focus)
 	}
 
-	// 1. Press Tab to switch focus to Preview
-	updated, _ := app.Update(tea.KeyMsg{Type: tea.KeyTab})
-	appModel := updated.(App)
-
-	if appModel.Focus != FocusPreview {
-		t.Fatalf("expected FocusPreview after Tab, got %v", appModel.Focus)
+	// 1. Tab must NOT toggle focus anymore (unbound per user requirement)
+	tabUpdated, _ := app.Update(tea.KeyMsg{Type: tea.KeyTab})
+	tabApp := tabUpdated.(App)
+	if tabApp.Focus != FocusList {
+		t.Fatalf("expected FocusList because Tab is unbound, got %v", tabApp.Focus)
 	}
 
-	// 2. Send scroll keys while focused on Preview
-	scrolled, _ := appModel.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'j'}})
-	scrolledApp := scrolled.(App)
-	if scrolledApp.Focus != FocusPreview {
-		t.Fatalf("expected still FocusPreview after scroll key, got %v", scrolledApp.Focus)
+	// 2. Press Alt+Q (Leader) then Right/l to switch view to Preview
+	leader1, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}, Alt: true})
+	leaderApp1 := leader1.(App)
+	if !leaderApp1.LeaderMode {
+		t.Fatal("expected LeaderMode to be true after Alt+Q")
 	}
 
-	// 3. Press Tab again to return to List
-	backToList, _ := scrolledApp.Update(tea.KeyMsg{Type: tea.KeyTab})
-	listApp := backToList.(App)
+	switchedToPreview, _ := leaderApp1.Update(tea.KeyMsg{Type: tea.KeyRight})
+	previewApp := switchedToPreview.(App)
+	if previewApp.Focus != FocusPreview {
+		t.Fatalf("expected FocusPreview after Leader + Right, got %v", previewApp.Focus)
+	}
+	if previewApp.LeaderMode {
+		t.Fatal("expected LeaderMode to be false after switching view")
+	}
+
+	// 3. Press Alt+Q (Leader) then Left/h to switch view back to List
+	leader2, _ := previewApp.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}, Alt: true})
+	leaderApp2 := leader2.(App)
+	switchedToList, _ := leaderApp2.Update(tea.KeyMsg{Type: tea.KeyLeft})
+	listApp := switchedToList.(App)
 	if listApp.Focus != FocusList {
-		t.Fatalf("expected FocusList after second Tab, got %v", listApp.Focus)
+		t.Fatalf("expected FocusList after Leader + Left, got %v", listApp.Focus)
 	}
 
-	// 4. Press Tab then Esc to return to List
-	toPrev, _ := listApp.Update(tea.KeyMsg{Type: tea.KeyTab})
-	toPrevApp := toPrev.(App)
-	escBack, _ := toPrevApp.Update(tea.KeyMsg{Type: tea.KeyEsc})
+	// 4. In Preview, Esc returns focus to List
+	toPrev2, _ := listApp.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}, Alt: true})
+	toPrevApp2, _ := toPrev2.(App).Update(tea.KeyMsg{Type: tea.KeyRight})
+	prevFocusApp := toPrevApp2.(App)
+	escBack, _ := prevFocusApp.Update(tea.KeyMsg{Type: tea.KeyEsc})
 	escApp := escBack.(App)
 	if escApp.Focus != FocusList {
 		t.Fatalf("expected FocusList after Esc from preview, got %v", escApp.Focus)
@@ -273,11 +285,11 @@ func TestApp_TmuxResize(t *testing.T) {
 		t.Fatalf("expected width to increase or stay equal")
 	}
 
-	// 2. Press Alt+Q to toggle ResizeMode
+	// 2. Press Alt+Q to toggle LeaderMode
 	updated2, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}, Alt: true})
 	appResize := updated2.(App)
-	if !appResize.ResizeMode {
-		t.Fatal("expected ResizeMode to be true after Alt+Q")
+	if !appResize.LeaderMode {
+		t.Fatal("expected LeaderMode to be true after Alt+Q")
 	}
 
 	// Test AdjustSplit directly
@@ -334,6 +346,31 @@ func TestApp_InPreviewGrep(t *testing.T) {
 	appClosed := updated2.(App)
 	if appClosed.Preview.Searching {
 		t.Fatal("expected Preview.Searching to be false after Esc")
+	}
+}
+
+func TestApp_ClipboardCopy(t *testing.T) {
+	files := []model.FileInfo{
+		{RelPath: "test.md", Path: "/tmp/deepmd-test.md"},
+	}
+	_ = os.WriteFile("/tmp/deepmd-test.md", []byte("# Header\nContent line"), 0644)
+	app := NewApp(files, "/tmp")
+
+	// 1. Ctrl+C in FocusList copies path and does NOT quit
+	updatedC, cmd := app.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	appC := updatedC.(App)
+	if cmd != nil {
+		t.Fatalf("expected nil cmd (no quit) on Ctrl+C in List, got %v", cmd)
+	}
+	if !strings.Contains(appC.Notification, "Copied path") {
+		t.Fatalf("expected notification to contain 'Copied path', got %q", appC.Notification)
+	}
+
+	// 2. Ctrl+A copies content
+	updatedA, _ := app.Update(tea.KeyMsg{Type: tea.KeyCtrlA})
+	appA := updatedA.(App)
+	if !strings.Contains(appA.Notification, "Copied content") {
+		t.Fatalf("expected notification to contain 'Copied content', got %q", appA.Notification)
 	}
 }
 

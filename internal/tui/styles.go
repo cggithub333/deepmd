@@ -52,7 +52,7 @@ func CalculateLayoutWithCustomLeft(width, height int, customLeft int) LayoutDime
 
 	leftW := customLeft
 	if leftW <= 0 {
-		leftW = int(float64(width) * 0.35)
+		leftW = int(float64(width) * 0.60)
 	}
 
 	minLeft := 20
