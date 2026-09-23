@@ -72,9 +72,9 @@ func (pp *PreviewPane) SetDimensions(width, height int) {
 	pp.Height = height
 	vpHeight := height
 	if pp.Searching {
-		vpHeight = height - 2
-		if vpHeight < 3 {
-			vpHeight = 3
+		vpHeight = height - 1
+		if vpHeight < 2 {
+			vpHeight = 2
 		}
 	}
 	pp.Viewport.Width = width
@@ -97,10 +97,12 @@ func (pp *PreviewPane) StartSearch() {
 	}
 }
 
-// StopSearch deactivates the search box and restores full preview height.
+// StopSearch deactivates the search box and restores full preview height and raw unhighlighted content.
 func (pp *PreviewPane) StopSearch() {
 	pp.Searching = false
 	pp.SearchInput.Blur()
+	pp.MatchLines = nil
+	pp.Viewport.SetContent(pp.RawContent)
 	pp.SetDimensions(pp.Width, pp.Height)
 }
 
@@ -109,6 +111,7 @@ func (pp *PreviewPane) applySearch(query string) {
 	pp.CurrentMatch = 0
 	trimmed := strings.TrimSpace(query)
 	if trimmed == "" {
+		pp.Viewport.SetContent(pp.RawContent)
 		return
 	}
 	lowerQuery := strings.ToLower(trimmed)
@@ -118,6 +121,8 @@ func (pp *PreviewPane) applySearch(query string) {
 			pp.MatchLines = append(pp.MatchLines, idx)
 		}
 	}
+
+	pp.Viewport.SetContent(pp.renderHighlights(trimmed))
 	if len(pp.MatchLines) > 0 {
 		pp.scrollToCurrentMatch()
 	}
@@ -135,22 +140,78 @@ func (pp *PreviewPane) scrollToCurrentMatch() {
 	pp.Viewport.SetYOffset(offset)
 }
 
-// NextMatch navigates to the next search occurrence.
+// NextMatch navigates to the next search occurrence and updates highlight states.
 func (pp *PreviewPane) NextMatch() {
 	if len(pp.MatchLines) == 0 {
 		return
 	}
 	pp.CurrentMatch = (pp.CurrentMatch + 1) % len(pp.MatchLines)
+	pp.Viewport.SetContent(pp.renderHighlights(pp.SearchInput.Value()))
 	pp.scrollToCurrentMatch()
 }
 
-// PrevMatch navigates to the previous search occurrence.
+// PrevMatch navigates to the previous search occurrence and updates highlight states.
 func (pp *PreviewPane) PrevMatch() {
 	if len(pp.MatchLines) == 0 {
 		return
 	}
 	pp.CurrentMatch = (pp.CurrentMatch - 1 + len(pp.MatchLines)) % len(pp.MatchLines)
+	pp.Viewport.SetContent(pp.renderHighlights(pp.SearchInput.Value()))
 	pp.scrollToCurrentMatch()
+}
+
+// renderHighlights produces content where matching query occurrences are highlighted.
+// Active match on the target line is styled in bright magenta, other matches in gold/yellow.
+func (pp *PreviewPane) renderHighlights(query string) string {
+	trimmed := strings.TrimSpace(query)
+	if trimmed == "" || len(pp.Lines) == 0 {
+		return pp.RawContent
+	}
+
+	quoted := regexp.QuoteMeta(trimmed)
+	re, err := regexp.Compile(`(?i)(\x1b\[[0-9;]*[a-zA-Z])|(` + quoted + `)`)
+	if err != nil {
+		return pp.RawContent
+	}
+
+	var sb strings.Builder
+	normalHL := "\x1b[48;5;220m\x1b[38;5;16m\x1b[1m" // Gold/yellow bg, dark text, bold
+	activeHL := "\x1b[48;5;201m\x1b[97m\x1b[1m"       // Bright magenta bg, white text, bold
+	resetHL := "\x1b[0m"
+
+	targetLine := -1
+	if len(pp.MatchLines) > 0 && pp.CurrentMatch >= 0 && pp.CurrentMatch < len(pp.MatchLines) {
+		targetLine = pp.MatchLines[pp.CurrentMatch]
+	}
+
+	for idx, line := range pp.Lines {
+		if idx > 0 {
+			sb.WriteString("\n")
+		}
+
+		clean := stripANSI(line)
+		if !strings.Contains(strings.ToLower(clean), strings.ToLower(trimmed)) {
+			sb.WriteString(line)
+			continue
+		}
+
+		isTargetLine := (idx == targetLine)
+		hlCode := normalHL
+		if isTargetLine {
+			hlCode = activeHL
+		}
+
+		replaced := re.ReplaceAllStringFunc(line, func(match string) string {
+			if strings.HasPrefix(match, "\x1b[") {
+				return match
+			}
+			return hlCode + match + resetHL
+		})
+
+		sb.WriteString(replaced)
+	}
+
+	return sb.String()
 }
 
 // Update passes messages to the underlying viewport or search input.
@@ -164,10 +225,10 @@ func (pp *PreviewPane) Update(msg tea.Msg) (PreviewPane, tea.Cmd) {
 			case "esc":
 				pp.StopSearch()
 				return *pp, nil
-			case "enter", "n":
+			case "tab", "enter":
 				pp.NextMatch()
 				return *pp, nil
-			case "N", "shift+enter":
+			case "shift+tab", "shift+enter":
 				pp.PrevMatch()
 				return *pp, nil
 			}
@@ -177,6 +238,22 @@ func (pp *PreviewPane) Update(msg tea.Msg) (PreviewPane, tea.Cmd) {
 				pp.applySearch(pp.SearchInput.Value())
 			}
 			return *pp, cmd
+		}
+	}
+
+	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "tab", "n":
+			if len(pp.MatchLines) > 0 {
+				pp.NextMatch()
+				return *pp, nil
+			}
+		case "shift+tab", "N":
+			if len(pp.MatchLines) > 0 {
+				pp.PrevMatch()
+				return *pp, nil
+			}
 		}
 	}
 
@@ -190,25 +267,56 @@ func (pp *PreviewPane) View() string {
 		return pp.Viewport.View()
 	}
 
-	// Build small search box on top right
+	topRow := pp.buildSearchPill()
+	return topRow + "\n" + pp.Viewport.View()
+}
+
+func (pp *PreviewPane) buildSearchPill() string {
 	var matchBadge string
 	if len(pp.MatchLines) > 0 {
-		matchBadge = fmt.Sprintf("[%d/%d] [n/N]", pp.CurrentMatch+1, len(pp.MatchLines))
+		if pp.Width >= 48 {
+			matchBadge = fmt.Sprintf("[%d/%d] [Tab: next]", pp.CurrentMatch+1, len(pp.MatchLines))
+		} else {
+			matchBadge = fmt.Sprintf("[%d/%d]", pp.CurrentMatch+1, len(pp.MatchLines))
+		}
 	} else if strings.TrimSpace(pp.SearchInput.Value()) != "" {
-		matchBadge = "[0 matches]"
+		if pp.Width >= 40 {
+			matchBadge = "[0 matches]"
+		} else {
+			matchBadge = "[0]"
+		}
 	} else {
-		matchBadge = "[type to grep]"
+		if pp.Width >= 40 {
+			matchBadge = "[grep]"
+		} else {
+			matchBadge = ""
+		}
 	}
 
-	boxText := fmt.Sprintf("  grep: %s %s │ [Esc] ", pp.SearchInput.View(), matchBadge)
-	searchBox := lipgloss.NewStyle().
+	var boxText string
+	if pp.Width >= 55 {
+		boxText = fmt.Sprintf("  grep: %s %s │ [Esc] ", pp.SearchInput.View(), matchBadge)
+	} else if pp.Width >= 28 {
+		boxText = fmt.Sprintf("  grep: %s %s ", pp.SearchInput.View(), matchBadge)
+	} else {
+		boxText = fmt.Sprintf(" grep:%s", pp.SearchInput.View())
+	}
+
+	if pp.Width > 4 && len(stripANSI(boxText)) > pp.Width {
+		boxText = TruncateString(boxText, pp.Width-2)
+	}
+
+	searchPill := lipgloss.NewStyle().
 		Background(lipgloss.Color("#2E3440")).
 		Foreground(lipgloss.Color("#ECEFF4")).
-		Border(lipgloss.RoundedBorder()).
-		BorderForeground(lipgloss.Color("#FF5FD7")).
 		Bold(true).
+		Padding(0, 1).
 		Render(boxText)
 
-	topRow := lipgloss.NewStyle().Width(pp.Width).Align(lipgloss.Right).Render(searchBox)
-	return topRow + "\n" + pp.Viewport.View()
+	topRow := lipgloss.NewStyle().Width(pp.Width).Align(lipgloss.Right).Render(searchPill)
+	topLines := strings.Split(topRow, "\n")
+	if len(topLines) > 0 {
+		return topLines[0]
+	}
+	return topRow
 }

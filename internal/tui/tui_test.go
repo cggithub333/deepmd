@@ -356,14 +356,18 @@ func TestApp_ClipboardCopy(t *testing.T) {
 	_ = os.WriteFile("/tmp/deepmd-test.md", []byte("# Header\nContent line"), 0644)
 	app := NewApp(files, "/tmp")
 
-	// 1. Ctrl+C in FocusList copies path and does NOT quit
-	updatedC, cmd := app.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
-	appC := updatedC.(App)
-	if cmd != nil {
-		t.Fatalf("expected nil cmd (no quit) on Ctrl+C in List, got %v", cmd)
+	// 1. Ctrl+P in DualPane copies path
+	updatedP, _ := app.Update(tea.KeyMsg{Type: tea.KeyCtrlP})
+	appP := updatedP.(App)
+	if !strings.Contains(appP.Notification, "Copied path") {
+		t.Fatalf("expected notification to contain 'Copied path', got %q", appP.Notification)
 	}
-	if !strings.Contains(appC.Notification, "Copied path") {
-		t.Fatalf("expected notification to contain 'Copied path', got %q", appC.Notification)
+
+	// Also verify Ctrl+Y copies path
+	updatedY, _ := app.Update(tea.KeyMsg{Type: tea.KeyCtrlY})
+	appY := updatedY.(App)
+	if !strings.Contains(appY.Notification, "Copied path") {
+		t.Fatalf("expected notification to contain 'Copied path', got %q", appY.Notification)
 	}
 
 	// 2. Ctrl+A copies content
@@ -373,6 +377,297 @@ func TestApp_ClipboardCopy(t *testing.T) {
 		t.Fatalf("expected notification to contain 'Copied content', got %q", appA.Notification)
 	}
 }
+
+func TestApp_ExitShortcuts(t *testing.T) {
+	files := []model.FileInfo{
+		{RelPath: "test.md", Path: "/tmp/test.md"},
+	}
+	app := NewApp(files, "/tmp")
+
+	// 1. Ctrl+C exits immediately
+	_, cmdCtrlC := app.Update(tea.KeyMsg{Type: tea.KeyCtrlC})
+	if cmdCtrlC == nil {
+		t.Fatal("expected tea.Quit command on Ctrl+C")
+	}
+
+	// 2. 'q' does NOT exit in DualPane (it types into search input)
+	updQ, _ := app.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'q'}})
+	appQ := updQ.(App)
+	if appQ.List.TextInput.Value() != "q" {
+		t.Fatalf("expected 'q' to be entered into search input, got %q", appQ.List.TextInput.Value())
+	}
+
+	// 3. Typing 'exit' in search input and pressing Enter exits
+	app.List.TextInput.SetValue("exit")
+	_, cmdEnterExit := app.Update(tea.KeyMsg{Type: tea.KeyEnter})
+	if cmdEnterExit == nil {
+		t.Fatal("expected tea.Quit command on Enter with 'exit'")
+	}
+}
+
+func TestCalculateLayoutWithRatio(t *testing.T) {
+	// Standard width 100
+	l100 := CalculateLayout(100, 30)
+	if l100.LeftWidth != 60 {
+		t.Fatalf("expected LeftWidth to be 60 for width 100, got %d", l100.LeftWidth)
+	}
+	if l100.RightWidth != 36 {
+		t.Fatalf("expected RightWidth to be 36 for width 100, got %d", l100.RightWidth)
+	}
+
+	// Widescreen 200
+	l200 := CalculateLayout(200, 50)
+	if l200.LeftWidth != 120 {
+		t.Fatalf("expected LeftWidth to be 120 (60%%) for width 200, got %d", l200.LeftWidth)
+	}
+	if l200.RightWidth != 76 {
+		t.Fatalf("expected RightWidth to be 76 for width 200, got %d", l200.RightWidth)
+	}
+
+	// Guard too small
+	lSmall := CalculateLayout(50, 10)
+	if !lSmall.TooSmall {
+		t.Fatal("expected TooSmall to be true for 50x10")
+	}
+
+	// Explicit ratio
+	l70 := CalculateLayoutWithRatio(100, 30, 0.70)
+	if l70.LeftWidth != 70 {
+		t.Fatalf("expected LeftWidth to be 70 for ratio 0.70, got %d", l70.LeftWidth)
+	}
+}
+
+func TestSmartTruncatePath(t *testing.T) {
+	// Base file exceeds max width
+	s1 := SmartTruncatePath("longfilename.md", 8)
+	if s1 != "longf..." {
+		t.Fatalf("expected 'longf...', got %q", s1)
+	}
+
+	// Deeply nested file preserves base filename instead of directory prefix
+	path := "bug-reports/bug-01-fix-crash.md"
+	s2 := SmartTruncatePath(path, 26)
+	if !strings.HasPrefix(s2, ".../") || !strings.HasSuffix(s2, "bug-01-fix-crash.md") {
+		t.Fatalf("expected '.../bug-01-fix-crash.md', got %q", s2)
+	}
+
+	// Exact length or shorter path
+	s3 := SmartTruncatePath("short/path.md", 20)
+	if s3 != "short/path.md" {
+		t.Fatalf("expected 'short/path.md', got %q", s3)
+	}
+
+	// Small max width edge cases
+	s4 := SmartTruncatePath("test.md", 0)
+	if s4 != "" {
+		t.Fatalf("expected empty for maxWidth 0, got %q", s4)
+	}
+}
+
+func TestListPane_ResponsiveWidth(t *testing.T) {
+	files := []model.FileInfo{
+		{RelPath: "sub/test.md", Path: "/tmp/test.md"},
+	}
+	lp := NewListPane(files)
+
+	// Narrow width < 35
+	lp.SetDimensions(25, 20)
+	if lp.TextInput.Width != 19 {
+		t.Fatalf("expected TextInput.Width 19, got %d", lp.TextInput.Width)
+	}
+	if lp.TextInput.Placeholder != "Search..." {
+		t.Fatalf("expected placeholder 'Search...', got %q", lp.TextInput.Placeholder)
+	}
+
+	// Medium width 40
+	lp.SetDimensions(40, 20)
+	if lp.TextInput.Placeholder != "Search files..." {
+		t.Fatalf("expected placeholder 'Search files...', got %q", lp.TextInput.Placeholder)
+	}
+
+	// Wide width 70
+	lp.SetDimensions(70, 20)
+	if lp.TextInput.Placeholder != "Type to search files... (Ctrl+F for grep)" {
+		t.Fatalf("expected placeholder 'Type to search files... (Ctrl+F for grep)', got %q", lp.TextInput.Placeholder)
+	}
+}
+
+func TestApp_DefaultSplitRatioOnWindowSizeMsg(t *testing.T) {
+	files := []model.FileInfo{
+		{RelPath: "file1.md", Path: "/tmp/file1.md"},
+	}
+	app := NewApp(files, "/tmp")
+
+	// Bubble Tea sends WindowSizeMsg on startup
+	updated, _ := app.Update(tea.WindowSizeMsg{Width: 200, Height: 50})
+	appRes := updated.(App)
+
+	if appRes.Layout.LeftWidth != 120 {
+		t.Fatalf("expected LeftWidth to be 120 (60%% of 200), got %d", appRes.Layout.LeftWidth)
+	}
+	if appRes.Layout.RightWidth != 76 {
+		t.Fatalf("expected RightWidth to be 76, got %d", appRes.Layout.RightWidth)
+	}
+	if appRes.CustomLeftWidth != 120 {
+		t.Fatalf("expected CustomLeftWidth to be 120, got %d", appRes.CustomLeftWidth)
+	}
+}
+
+func TestApp_MouseClickFocusSwitch(t *testing.T) {
+	files := []model.FileInfo{
+		{RelPath: "file1.md", Path: "/tmp/file1.md"},
+		{RelPath: "file2.md", Path: "/tmp/file2.md"},
+	}
+	app := NewApp(files, "/tmp")
+	app.Focus = FocusList
+
+	dividerX := app.Layout.LeftWidth + 2
+
+	// 1. Click right pane -> FocusPreview
+	clickRight := tea.MouseMsg{
+		X:      dividerX + 10,
+		Y:      5,
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonLeft,
+	}
+	upd1, _ := app.Update(clickRight)
+	app1 := upd1.(App)
+	if app1.Focus != FocusPreview {
+		t.Fatalf("expected FocusPreview after clicking right pane, got %v", app1.Focus)
+	}
+
+	// 2. Click left pane -> FocusList
+	clickLeft := tea.MouseMsg{
+		X:      5,
+		Y:      2,
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonLeft,
+	}
+	upd2, _ := app1.Update(clickLeft)
+	app2 := upd2.(App)
+	if app2.Focus != FocusList {
+		t.Fatalf("expected FocusList after clicking left pane, got %v", app2.Focus)
+	}
+
+	// 3. Click second file row in list -> updates cursor to 1
+	clickRow2 := tea.MouseMsg{
+		X:      5,
+		Y:      5, // row 4 is idx 0, row 5 is idx 1
+		Action: tea.MouseActionPress,
+		Button: tea.MouseButtonLeft,
+	}
+	upd3, _ := app2.Update(clickRow2)
+	app3 := upd3.(App)
+	if app3.List.Cursor != 1 {
+		t.Fatalf("expected List.Cursor to be 1 after clicking row 5, got %d", app3.List.Cursor)
+	}
+}
+
+func TestApp_GrepBackspaceAndTabTraversal(t *testing.T) {
+	files := []model.FileInfo{
+		{RelPath: "file1.md", Path: "/tmp/file1.md"},
+	}
+	app := NewApp(files, "/tmp")
+	app.Preview.SetContent("Line 1 with keyword\nLine 2 text\nLine 3 another keyword\nLine 4")
+
+	// 1. Start grep search via Ctrl+F
+	upd, _ := app.Update(tea.KeyMsg{Type: tea.KeyCtrlF})
+	appSearch := upd.(App)
+	if !appSearch.Preview.Searching || appSearch.Focus != FocusPreview {
+		t.Fatalf("expected Preview.Searching and FocusPreview, got searching=%v, focus=%v", appSearch.Preview.Searching, appSearch.Focus)
+	}
+
+	// 2. Type "key"
+	for _, ch := range "key" {
+		upd, _ = appSearch.Update(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{ch}})
+		appSearch = upd.(App)
+	}
+	if appSearch.Preview.SearchInput.Value() != "key" {
+		t.Fatalf("expected query 'key', got %q", appSearch.Preview.SearchInput.Value())
+	}
+	if len(appSearch.Preview.MatchLines) != 2 {
+		t.Fatalf("expected 2 matches, got %d", len(appSearch.Preview.MatchLines))
+	}
+
+	// 3. Press Backspace: must delete character, remain in FocusPreview, remain Searching
+	upd, _ = appSearch.Update(tea.KeyMsg{Type: tea.KeyBackspace})
+	appSearch = upd.(App)
+	if appSearch.Focus != FocusPreview {
+		t.Fatalf("expected Focus to stay FocusPreview after Backspace, got %v", appSearch.Focus)
+	}
+	if !appSearch.Preview.Searching {
+		t.Fatal("expected Preview.Searching to remain true after Backspace")
+	}
+	if appSearch.Preview.SearchInput.Value() != "ke" {
+		t.Fatalf("expected query 'ke' after Backspace, got %q", appSearch.Preview.SearchInput.Value())
+	}
+
+	// 4. Tab traversal: moves to next match
+	initMatch := appSearch.Preview.CurrentMatch
+	upd, _ = appSearch.Update(tea.KeyMsg{Type: tea.KeyTab})
+	appSearch = upd.(App)
+	if appSearch.Preview.CurrentMatch == initMatch && len(appSearch.Preview.MatchLines) > 1 {
+		t.Fatalf("expected CurrentMatch to advance after Tab, stayed %d", initMatch)
+	}
+
+	// 5. Shift+Tab traversal: moves to previous match
+	upd, _ = appSearch.Update(tea.KeyMsg{Type: tea.KeyShiftTab})
+	appSearch = upd.(App)
+	if appSearch.Preview.CurrentMatch != initMatch {
+		t.Fatalf("expected CurrentMatch to return to %d after Shift+Tab, got %d", initMatch, appSearch.Preview.CurrentMatch)
+	}
+
+	// 6. View line count must equal Height (no layout overflow)
+	viewLines := strings.Split(appSearch.Preview.View(), "\n")
+	if len(viewLines) != appSearch.Preview.Height {
+		t.Fatalf("expected Preview.View() lines to equal Height %d, got %d", appSearch.Preview.Height, len(viewLines))
+	}
+}
+
+func TestPreviewPane_RenderHighlights(t *testing.T) {
+	pp := NewPreviewPane(80, 20)
+	raw := "First line with alpha keyword\nSecond line without\nThird line with alpha keyword\nFourth line"
+	pp.SetContent(raw)
+
+	// 1. Initially unhighlighted
+	if strings.Contains(pp.Viewport.View(), "\x1b[48;5;") {
+		t.Fatal("expected no highlight initially")
+	}
+
+	// 2. Start search for "alpha"
+	pp.StartSearch()
+	pp.SearchInput.SetValue("alpha")
+	pp.applySearch("alpha")
+
+	if len(pp.MatchLines) != 2 {
+		t.Fatalf("expected 2 match lines, got %d", len(pp.MatchLines))
+	}
+
+	// Viewport must contain both active highlight (magenta \x1b[48;5;201m) and normal highlight (yellow \x1b[48;5;220m)
+	viewContent := pp.Viewport.View()
+	if !strings.Contains(viewContent, "\x1b[48;5;201m") {
+		t.Fatal("expected active match highlight in magenta")
+	}
+	if !strings.Contains(viewContent, "\x1b[48;5;220m") {
+		t.Fatal("expected secondary match highlight in yellow")
+	}
+
+	// 3. Next match switches active line
+	pp.NextMatch()
+	viewContent2 := pp.Viewport.View()
+	if !strings.Contains(viewContent2, "\x1b[48;5;201m") {
+		t.Fatal("expected active match highlight after NextMatch")
+	}
+
+	// 4. StopSearch restores raw content with zero highlight codes
+	pp.StopSearch()
+	if strings.Contains(pp.Viewport.View(), "\x1b[48;5;") {
+		t.Fatal("expected highlights removed after StopSearch")
+	}
+}
+
+
+
 
 
 

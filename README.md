@@ -14,6 +14,7 @@
   - In explorer mode: toggle `Ctrl+f` to search inside file contents.
   - In reader mode: press `/` to search within the open document with `n`/`N` jumping.
 - **Direct Terminal Dump Mode**: Use `-p` or `--dump` to render and dump styled ANSI markdown directly to stdout (compatible with pipes and standard pagers like `less -R`).
+- **Border-Free Shaded Code Blocks**: Markdown code blocks (` ```...``` `) are displayed inside a modern, borderless card with a solid dark gray background, language badge, and vibrant Chroma syntax highlighting with auto-wrapping for long lines.
 - **Single-Binary Zero Dependencies**: Statically compiled binary (`CGO_ENABLED=0`) with zero shared library or external runtime requirements.
 
 ---
@@ -86,25 +87,28 @@ deepmd --enable-mouse --mouse-delta 1
 ### Dual-Pane Explorer Mode
 | Key / Gesture | Action |
 | :--- | :--- |
+| **Mouse Click on File Explorer** | Focus the file explorer pane; click any file item to directly select and preview |
+| **Mouse Click on Preview Box** | Focus the preview pane for scrolling or searching |
 | **Mouse Click & Drag Divider** | Press on the middle border between List and Preview to slide the split left <-> right |
 | `Alt+q` / `Alt+Q` | Tmux-like leader chord to toggle **Leader Mode** (`←`/`→` to switch view, `Alt+←`/`Alt+→` to resize, `Enter`/`Esc` to exit) |
 | `Leader` then `←` / `h` | Switch active focus to **File Explorer** |
 | `Leader` then `→` / `l` | Switch active focus to **Preview Box** |
 | `Leader` then `Alt+←` / `Alt+h` | Nudge divider left (shrinks file list, widens preview box) |
 | `Leader` then `Alt+→` / `Alt+l` | Nudge divider right (widens file list, narrows preview box) |
-| `Ctrl+c` | **Copy Filepath** to system clipboard (when focusing on the file explorer) |
+| `Ctrl+p` / `Ctrl+y` | **Copy Filepath** to system clipboard |
 | `Ctrl+a` | **Copy Full Content** to system clipboard (works for both file explorer and preview focus) |
-| `Ctrl+f` | Open / close in-preview grep search box on the top right of Preview box |
-| `/` | Open in-preview grep when Preview is focused |
-| `Enter` / `n` | Jump to next match in preview (while search box is open) |
-| `N` / `Shift+Enter` | Jump to previous match in preview (while search box is open) |
+| `Ctrl+f` / `/` | Open / close in-preview grep search pill on the top right of Preview box |
+| `Tab` / `Enter` | **Traverse to next match** in preview grep (active match in magenta, other matches in gold/yellow) |
+| `Shift+Tab` / `Shift+Enter` | **Traverse to previous match** in preview grep |
+| `Backspace` | Edit search input (deletes characters without switching pane focus) |
+| `n` / `N` | Next / previous match navigation (when preview is focused without active search input) |
 | `↑` / `k` | Move cursor up in file list (or scroll up when Preview focused) |
 | `↓` / `j` | Move cursor down in file list (or scroll down when Preview focused) |
 | `d` / `u` | Scroll half-page down / up when Preview focused |
-| `Enter` | Open selected file in full-screen reader |
+| `Enter` | Open selected file in full-screen reader (or exit if search query is `exit` / `quit` / `:q`) |
 | `Ctrl+r` | Rescan directory and refresh ScoutCache (`~/.deepmd/<timestamp>/md-scout.md`) |
-| `Esc` / `q` | Close preview search box, return focus to file list, or exit deepmd |
-| `Ctrl+q` | Exit deepmd immediately |
+| `Esc` | Close preview search box or return focus to file list |
+| `Ctrl+c` / `Ctrl+q` / `exit` | **Exit deepmd immediately** (`q` does not exit) |
 
 > [!NOTE]
 > **Trackpad / Wheel Scroll Guard**: Wheel and 2-finger trackpad scrolling are strictly silenced in Dual-Pane mode so inertia gestures never uncontrollably traverse or jump files in the explorer list.

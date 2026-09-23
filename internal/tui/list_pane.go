@@ -50,10 +50,32 @@ func NewListPane(files []model.FileInfo) ListPane {
 	return lp
 }
 
-// SetDimensions sets the dimensions of the ListPane.
+// SetDimensions sets the dimensions of the ListPane and adapts input width & placeholder.
 func (lp *ListPane) SetDimensions(width, height int) {
 	lp.Width = width
 	lp.Height = height
+	lp.TextInput.Width = max(10, width-6)
+	lp.updatePlaceholder()
+}
+
+func (lp *ListPane) updatePlaceholder() {
+	if lp.Mode == SearchModePath {
+		if lp.Width < 35 {
+			lp.TextInput.Placeholder = "Search..."
+		} else if lp.Width < 55 {
+			lp.TextInput.Placeholder = "Search files..."
+		} else {
+			lp.TextInput.Placeholder = "Type to search files... (Ctrl+F for grep)"
+		}
+	} else {
+		if lp.Width < 35 {
+			lp.TextInput.Placeholder = "Content..."
+		} else if lp.Width < 55 {
+			lp.TextInput.Placeholder = "Search content..."
+		} else {
+			lp.TextInput.Placeholder = "Search text inside markdown files..."
+		}
+	}
 }
 
 func (lp *ListPane) applyFilter(query string) {
@@ -90,13 +112,12 @@ func (lp *ListPane) SelectedFile() *model.FileInfo {
 func (lp *ListPane) ToggleMode() {
 	if lp.Mode == SearchModePath {
 		lp.Mode = SearchModeContent
-		lp.TextInput.Placeholder = "Search text inside markdown files..."
 		lp.TextInput.Prompt = " "
 	} else {
 		lp.Mode = SearchModePath
-		lp.TextInput.Placeholder = "Type to search files... (Ctrl+F for content)"
 		lp.TextInput.Prompt = " "
 	}
+	lp.updatePlaceholder()
 	lp.Cursor = 0
 	lp.Offset = 0
 	lp.applyFilter(lp.TextInput.Value())
@@ -181,7 +202,7 @@ func (lp *ListPane) View() string {
 			item := lp.Filtered[i]
 			line := item.File.RelPath
 			if lp.Width-6 > 0 {
-				line = TruncateString(line, lp.Width-6)
+				line = SmartTruncatePath(line, lp.Width-6)
 			}
 
 			if i == lp.Cursor {
@@ -204,7 +225,7 @@ func (lp *ListPane) View() string {
 
 		for i := lp.Offset; i < end; i++ {
 			m := lp.ContentMatches[i]
-			label := fmt.Sprintf("%s:%d", m.File.RelPath, m.LineNum)
+			label := fmt.Sprintf("%s:%d", SmartTruncatePath(m.File.RelPath, max(12, lp.Width/2)), m.LineNum)
 			snippet := strings.TrimSpace(m.LineText)
 			maxSnippetW := lp.Width - len(label) - 6
 			if maxSnippetW > 0 {

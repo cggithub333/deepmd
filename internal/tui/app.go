@@ -51,6 +51,7 @@ type App struct {
 	Rescouting      bool
 	LeaderMode      bool
 	DraggingDivider bool
+	SplitRatio      float64
 	CustomLeftWidth int
 	Notification    string
 	Config          config.Config
@@ -70,7 +71,8 @@ func NewApp(files []model.FileInfo, root string) App {
 
 // NewAppWithConfig initializes the deepmd TUI model with a specific configuration.
 func NewAppWithConfig(files []model.FileInfo, root string, cfg config.Config) App {
-	layout := CalculateLayout(80, 24)
+	ratio := 0.60
+	layout := CalculateLayoutWithRatio(80, 24, ratio)
 	list := NewListPane(files)
 	list.SetDimensions(layout.LeftWidth, layout.LeftHeight)
 	preview := NewPreviewPane(layout.RightWidth-2, layout.RightHeight)
@@ -91,6 +93,7 @@ func NewAppWithConfig(files []model.FileInfo, root string, cfg config.Config) Ap
 		Rescouting:      false,
 		LeaderMode:      false,
 		DraggingDivider: false,
+		SplitRatio:      ratio,
 		CustomLeftWidth: layout.LeftWidth,
 		Notification:    "",
 		Config:          cfg,
@@ -147,8 +150,11 @@ func (a *App) triggerRescout() tea.Cmd {
 }
 
 func (a *App) updateLayoutWithWidth(leftWidth int) {
-	a.CustomLeftWidth = leftWidth
-	a.Layout = CalculateLayoutWithCustomLeft(a.Layout.TotalWidth, a.Layout.TotalHeight, a.CustomLeftWidth)
+	if a.Layout.TotalWidth > 0 {
+		a.SplitRatio = float64(leftWidth) / float64(a.Layout.TotalWidth)
+	}
+	a.Layout = CalculateLayoutWithRatio(a.Layout.TotalWidth, a.Layout.TotalHeight, a.SplitRatio)
+	a.CustomLeftWidth = a.Layout.LeftWidth
 	if !a.Layout.TooSmall {
 		a.List.SetDimensions(a.Layout.LeftWidth, a.Layout.LeftHeight)
 		a.Preview.SetDimensions(a.Layout.RightWidth, a.Layout.RightHeight)
@@ -160,7 +166,7 @@ func (a *App) updateLayoutWithWidth(leftWidth int) {
 func (a *App) AdjustSplit(delta int) tea.Cmd {
 	current := a.Layout.LeftWidth
 	if current <= 0 {
-		current = int(float64(a.Layout.TotalWidth) * 0.60)
+		current = int(float64(a.Layout.TotalWidth) * a.SplitRatio)
 	}
 	a.updateLayoutWithWidth(current + delta)
 
@@ -177,7 +183,11 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	switch msg := msg.(type) {
 	case tea.WindowSizeMsg:
-		a.Layout = CalculateLayoutWithCustomLeft(msg.Width, msg.Height, a.CustomLeftWidth)
+		if a.SplitRatio <= 0.05 || a.SplitRatio >= 0.95 {
+			a.SplitRatio = 0.60
+		}
+		a.Layout = CalculateLayoutWithRatio(msg.Width, msg.Height, a.SplitRatio)
+		a.CustomLeftWidth = a.Layout.LeftWidth
 		if !a.Layout.TooSmall {
 			a.List.SetDimensions(a.Layout.LeftWidth, a.Layout.LeftHeight)
 			a.Preview.SetDimensions(a.Layout.RightWidth, a.Layout.RightHeight)
@@ -242,10 +252,49 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				}
 			}
 
-			// Press mouse button near divider: begin dragging
+			// Press mouse button: check if divider dragging or tab/pane click focus
 			if mouseEv.Action == tea.MouseActionPress && mouseEv.Button == tea.MouseButtonLeft {
 				if mouseEv.X >= dividerX-2 && mouseEv.X <= dividerX+2 {
 					a.DraggingDivider = true
+					return a, nil
+				}
+
+				// Click on Left (File Explorer) Pane: switch focus to List
+				if mouseEv.X < dividerX-2 {
+					if a.Focus != FocusList {
+						a.Focus = FocusList
+						a.List.TextInput.Focus()
+						if a.Preview.Searching {
+							a.Preview.StopSearch()
+						}
+					}
+
+					// Click directly on a file item in the list
+					if mouseEv.Y >= 4 && mouseEv.Y < 4+a.Layout.LeftHeight-3 {
+						clickedIdx := a.List.Offset + (mouseEv.Y - 4)
+						maxItems := len(a.List.Filtered)
+						if a.List.Mode == SearchModeContent {
+							maxItems = len(a.List.ContentMatches)
+						}
+						if clickedIdx >= 0 && clickedIdx < maxItems {
+							oldSel := a.List.SelectedFile()
+							a.List.Cursor = clickedIdx
+							newSel := a.List.SelectedFile()
+							if newSel != nil && (oldSel == nil || oldSel.Path != newSel.Path) {
+								a.CurrentPath = newSel.Path
+								return a, a.dispatchPreview(newSel.Path)
+							}
+						}
+					}
+					return a, nil
+				}
+
+				// Click on Right (Preview) Pane: switch focus to Preview
+				if mouseEv.X > dividerX+2 {
+					if a.Focus != FocusPreview {
+						a.Focus = FocusPreview
+						a.List.TextInput.Blur()
+					}
 					return a, nil
 				}
 			}
@@ -322,16 +371,24 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		switch msg.String() {
 		case "ctrl+c":
-			// Ctrl+C copies filepath ONLY when focusing on the file explorer
-			if a.State == StateDualPane && a.Focus == FocusList {
+			return a, tea.Quit
+
+		case "ctrl+p", "ctrl+y":
+			// Copy filepath to clipboard
+			var path string
+			if a.State == StateDualPane {
 				selected := a.List.SelectedFile()
 				if selected != nil {
-					_ = CopyToClipboard(selected.Path)
-					a.Notification = fmt.Sprintf(" 󰅍 Copied path: %s ", filepath.Base(selected.Path))
+					path = selected.Path
 				}
-				return a, nil
+			} else if a.State == StateReader && a.Reader.File != nil {
+				path = a.Reader.File.Path
 			}
-			return a, tea.Quit
+			if path != "" {
+				_ = CopyToClipboard(path)
+				a.Notification = fmt.Sprintf(" 󰅍 Copied path: %s ", filepath.Base(path))
+			}
+			return a, nil
 
 		case "ctrl+a":
 			// Ctrl+A copies raw markdown file content (for both file explorer focus and preview focus)
@@ -381,17 +438,14 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				a.State = StateDualPane
 				return a, nil
 			}
-			if a.State == StateDualPane && a.Focus == FocusPreview {
-				if a.Preview.Searching {
-					a.Preview.StopSearch()
-				}
+			if a.State == StateDualPane && a.Focus == FocusPreview && !a.Preview.Searching {
 				a.Focus = FocusList
 				a.List.TextInput.Focus()
 				return a, nil
 			}
-			return a, tea.Quit
+			// Do NOT quit on q!
 
-		case "esc", "backspace":
+		case "esc":
 			if a.State == StateReader {
 				a.State = StateDualPane
 				return a, nil
@@ -399,15 +453,33 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if a.State == StateDualPane && a.Focus == FocusPreview {
 				if a.Preview.Searching {
 					a.Preview.StopSearch()
+					return a, nil
 				}
 				a.Focus = FocusList
 				a.List.TextInput.Focus()
 				return a, nil
 			}
 
+		case "backspace":
+			if a.State == StateReader {
+				a.State = StateDualPane
+				return a, nil
+			}
+			// In DualPane mode, do not intercept backspace so TextInput / SearchInput can delete characters
+
 		case "enter":
 			if a.State == StateDualPane {
+				// Typing exit / :exit / quit / :quit / :q in search input exits
+				query := strings.TrimSpace(strings.ToLower(a.List.TextInput.Value()))
+				if query == "exit" || query == ":exit" || query == "quit" || query == ":quit" || query == ":q" {
+					return a, tea.Quit
+				}
+
 				if a.Focus == FocusPreview && a.Preview.Searching {
+					previewQuery := strings.TrimSpace(strings.ToLower(a.Preview.SearchInput.Value()))
+					if previewQuery == "exit" || previewQuery == ":exit" || previewQuery == "quit" || previewQuery == ":quit" || previewQuery == ":q" {
+						return a, tea.Quit
+					}
 					a.Preview.NextMatch()
 					return a, nil
 				}
@@ -441,10 +513,6 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if a.Preview.Searching {
 			var prevCmd tea.Cmd
 			a.Preview, prevCmd = a.Preview.Update(msg)
-			if !a.Preview.Searching {
-				a.Focus = FocusList
-				a.List.TextInput.Focus()
-			}
 			return a, prevCmd
 		}
 
@@ -533,16 +601,16 @@ func (a App) View() string {
 		helpText = StatusStyle.Render(" [←/→] Switch Pane │ [Alt+←/→] Resize Divider │ [Enter/Esc] Done ")
 	} else if a.Focus == FocusPreview {
 		if a.Preview.Searching {
-			helpText = StatusStyle.Render(" [Enter/n] Next match │ [N] Prev match │ [Esc] Close search ")
+			helpText = StatusStyle.Render(" [Tab/Enter] Next match │ [Shift+Tab] Prev match │ [Esc] Close search ")
 		} else {
-			helpText = StatusStyle.Render(" [Ctrl+F or /] Grep Preview │ [Ctrl+A] Copy Content │ [j/k/d/u] Scroll │ [Esc/q] Back to List ")
+			helpText = StatusStyle.Render(" [Ctrl+F or /] Grep Preview │ [Tab/n] Next match │ [Ctrl+A] Copy Content │ [j/k/d/u] Scroll │ [Esc] Back to List │ [Ctrl+C] Exit ")
 		}
 	} else {
 		rescoutNotice := ""
 		if a.Rescouting {
 			rescoutNotice = " [Rescouting...] │"
 		}
-		helpText = StatusStyle.Render(fmt.Sprintf(" [Alt+Q then ←/→] Switch View │ [Alt+Q then Alt+←/→] Resize │ [Ctrl+C] Copy Path │ [Ctrl+A] Copy Content │ [Ctrl+F] Grep %s│ [q] Quit ", rescoutNotice))
+		helpText = StatusStyle.Render(fmt.Sprintf(" [Click Pane / Leader+←/→] Switch Focus │ [Drag Divider / Leader+Alt+←/→] Resize │ [Ctrl+P] Copy Path │ [Ctrl+A] Copy Content │ [Ctrl+F] Grep %s│ [Ctrl+C / exit] Exit ", rescoutNotice))
 	}
 	sb.WriteString(helpText)
 

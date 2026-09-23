@@ -1,6 +1,10 @@
 package tui
 
-import "github.com/charmbracelet/lipgloss"
+import (
+	"path/filepath"
+
+	"github.com/charmbracelet/lipgloss"
+)
 
 var (
 	// Border styles
@@ -35,13 +39,13 @@ type LayoutDimensions struct {
 	TooSmall    bool
 }
 
-// CalculateLayout computes dimensions given terminal size with default ratio.
+// CalculateLayout computes dimensions given terminal size with default ratio (0.60).
 func CalculateLayout(width, height int) LayoutDimensions {
-	return CalculateLayoutWithCustomLeft(width, height, 0)
+	return CalculateLayoutWithRatio(width, height, 0.60)
 }
 
-// CalculateLayoutWithCustomLeft computes dimensions with a custom left width.
-func CalculateLayoutWithCustomLeft(width, height int, customLeft int) LayoutDimensions {
+// CalculateLayoutWithRatio computes dimensions with a relative split ratio (0.0 to 1.0).
+func CalculateLayoutWithRatio(width, height int, ratio float64) LayoutDimensions {
 	if width < 60 || height < 14 {
 		return LayoutDimensions{
 			TotalWidth:  width,
@@ -50,11 +54,11 @@ func CalculateLayoutWithCustomLeft(width, height int, customLeft int) LayoutDime
 		}
 	}
 
-	leftW := customLeft
-	if leftW <= 0 {
-		leftW = int(float64(width) * 0.60)
+	if ratio <= 0.05 || ratio >= 0.95 {
+		ratio = 0.60
 	}
 
+	leftW := int(float64(width) * ratio)
 	minLeft := 20
 	maxLeft := width - 25
 	if maxLeft < minLeft {
@@ -88,6 +92,54 @@ func CalculateLayoutWithCustomLeft(width, height int, customLeft int) LayoutDime
 	}
 }
 
+// CalculateLayoutWithCustomLeft computes dimensions with an explicit custom left width.
+func CalculateLayoutWithCustomLeft(width, height int, customLeft int) LayoutDimensions {
+	if width < 60 || height < 14 {
+		return LayoutDimensions{
+			TotalWidth:  width,
+			TotalHeight: height,
+			TooSmall:    true,
+		}
+	}
+
+	leftW := customLeft
+	if leftW <= 0 {
+		return CalculateLayoutWithRatio(width, height, 0.60)
+	}
+
+	minLeft := 20
+	maxLeft := width - 25
+	if maxLeft < minLeft {
+		maxLeft = minLeft
+	}
+	if leftW < minLeft {
+		leftW = minLeft
+	}
+	if leftW > maxLeft {
+		leftW = maxLeft
+	}
+
+	rightW := width - leftW - 4
+	if rightW < 15 {
+		rightW = 15
+	}
+
+	innerH := height - 4
+	if innerH < 5 {
+		innerH = 5
+	}
+
+	return LayoutDimensions{
+		TotalWidth:  width,
+		TotalHeight: height,
+		LeftWidth:   leftW,
+		LeftHeight:  innerH,
+		RightWidth:  rightW,
+		RightHeight: innerH,
+		TooSmall:    false,
+	}
+}
+
 // TruncateString safely truncates a string with an ellipsis if it exceeds maxWidth.
 // It guarantees zero negative slice indexing and handles small/zero maxWidth gracefully.
 func TruncateString(s string, maxWidth int) string {
@@ -101,5 +153,55 @@ func TruncateString(s string, maxWidth int) string {
 		return s[:maxWidth]
 	}
 	return s[:maxWidth-3] + "..."
+}
+
+// SmartTruncatePath intelligently truncates file paths for narrow columns.
+// It prioritizes displaying the base filename over deeply nested directory prefixes.
+func SmartTruncatePath(path string, maxWidth int) string {
+	if maxWidth <= 0 {
+		return ""
+	}
+	if len(path) <= maxWidth {
+		return path
+	}
+	if maxWidth <= 3 {
+		return path[:maxWidth]
+	}
+
+	dir := filepath.Dir(path)
+	base := filepath.Base(path)
+
+	// If no parent directory (e.g. "README.md" or "."), standard truncate
+	if dir == "." || dir == "/" || dir == "" {
+		return TruncateString(base, maxWidth)
+	}
+
+	// If base filename alone is already >= maxWidth
+	if len(base) >= maxWidth {
+		return TruncateString(base, maxWidth)
+	}
+
+	// If there's room for ".../" + base
+	prefix := ".../"
+	needed := len(prefix) + len(base)
+	if maxWidth < needed {
+		// Just show the base name (which is <= maxWidth)
+		return base
+	}
+
+	// There is room for ".../" + some directory component + "/" + base
+	availForDir := maxWidth - needed
+	// If availForDir is small, just return ".../" + base
+	if availForDir <= 3 {
+		return prefix + base
+	}
+
+	// Try to include the immediate parent dir: ".../parent/base"
+	parent := filepath.Base(dir)
+	if len(parent)+1 <= availForDir {
+		return prefix + parent + "/" + base
+	}
+
+	return prefix + base
 }
 
