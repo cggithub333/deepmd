@@ -95,7 +95,7 @@ deepmd --enable-mouse --mouse-delta 1
 | `Leader` then `→` / `l` | Switch active focus to **Preview Box** |
 | `Leader` then `Alt+←` / `Alt+h` | Nudge divider left (shrinks file list, widens preview box) |
 | `Leader` then `Alt+→` / `Alt+l` | Nudge divider right (widens file list, narrows preview box) |
-| `Ctrl+p` / `Ctrl+y` | **Copy Filepath** to system clipboard |
+| `Ctrl+p` / `Ctrl+y` | **Copy Full Absolute Filepath** to system clipboard (when focused on file explorer) |
 | `Ctrl+a` | **Copy Full Content** to system clipboard (works for both file explorer and preview focus) |
 | `Ctrl+f` / `/` | Open / close in-preview grep search pill on the top right of Preview box |
 | `Tab` / `Enter` | **Traverse to next match** in preview grep (active match in magenta, other matches in gold/yellow) |
@@ -111,7 +111,7 @@ deepmd --enable-mouse --mouse-delta 1
 | `Ctrl+c` / `Ctrl+q` / `exit` | **Exit deepmd immediately** (`q` does not exit) |
 
 > [!NOTE]
-> **Trackpad / Wheel Scroll Guard**: Wheel and 2-finger trackpad scrolling are strictly silenced in Dual-Pane mode so inertia gestures never uncontrollably traverse or jump files in the explorer list.
+> **Touchpad & Mouse Wheel Scrolling**: Wheel and 2-finger trackpad gestures smoothly scroll the **Preview Box** (and Full-Screen Reader). Meanwhile, scrolling over the **File Explorer** list remains strictly silenced to prevent accidental inertia jumps across files.
 
 
 ### Full-Screen Reader Mode

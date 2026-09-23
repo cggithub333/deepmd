@@ -222,16 +222,39 @@ func (a App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	case tea.MouseMsg:
 		mouseEv := tea.MouseEvent(msg)
 
-		// 1. Wheel scroll handling: strictly disabled in DualPane mode!
-		// Trackpad 2-finger inertia or wheel clicks will NEVER scroll or jump through the file list.
+		// 1. Wheel scroll handling:
+		// Wheel and 2-finger touchpad gestures scroll the Preview Box smoothly when hovering over preview or when preview is focused.
+		// Mouse wheel over the File Explorer list remains strictly silenced to prevent accidental jumping through files.
 		if mouseEv.IsWheel() {
+			delta := a.Config.MouseWheelDelta
+			if delta <= 0 {
+				delta = 2
+			}
+
 			if a.State == StateDualPane {
+				dividerX := a.Layout.LeftWidth + 2
+				// If mouse is over Preview Pane or Preview is focused: scroll preview!
+				if mouseEv.X >= dividerX || a.Focus == FocusPreview {
+					switch mouseEv.Button {
+					case tea.MouseButtonWheelUp:
+						a.Preview.Viewport.LineUp(delta)
+					case tea.MouseButtonWheelDown:
+						a.Preview.Viewport.LineDown(delta)
+					}
+					return a, nil
+				}
+				// Mouse is over File Explorer: keep strictly silenced to prevent list jumping
 				return a, nil
 			}
-			if a.State == StateReader && a.Config.MouseWheelEnabled {
-				var cmd tea.Cmd
-				a.Reader, cmd = a.Reader.Update(msg)
-				return a, cmd
+
+			if a.State == StateReader {
+				switch mouseEv.Button {
+				case tea.MouseButtonWheelUp:
+					a.Reader.Viewport.LineUp(delta)
+				case tea.MouseButtonWheelDown:
+					a.Reader.Viewport.LineDown(delta)
+				}
+				return a, nil
 			}
 			return a, nil
 		}

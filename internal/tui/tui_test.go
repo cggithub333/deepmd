@@ -206,19 +206,45 @@ func TestApp_MouseWheelNeverScrollsList(t *testing.T) {
 
 	cfg := config.Config{
 		MouseWheelEnabled: true,
-		MouseWheelDelta:   1,
+		MouseWheelDelta:   2,
 	}
 	app := NewAppWithConfig(files, "/tmp", cfg)
+	app.Preview.SetContent(strings.Repeat("line in document\n", 50))
+	app.Preview.SetDimensions(40, 10)
 
-	// Send WheelDown - cursor MUST NOT change in DualPane mode
-	wheelDownMsg := tea.MouseMsg{Button: tea.MouseButtonWheelDown}
-	updated, cmd := app.Update(wheelDownMsg)
-	appResult := updated.(App)
-	if cmd != nil {
-		t.Fatalf("expected nil cmd for wheel drop, got %v", cmd)
+	dividerX := app.Layout.LeftWidth + 2
+
+	// 1. Send WheelDown over List Pane (X < dividerX) - cursor MUST NOT change
+	wheelDownList := tea.MouseMsg{
+		X:      dividerX - 5,
+		Button: tea.MouseButtonWheelDown,
 	}
-	if appResult.List.Cursor != 0 {
-		t.Fatalf("expected cursor to remain 0 in DualPane mode, got %d", appResult.List.Cursor)
+	updated1, _ := app.Update(wheelDownList)
+	appResult1 := updated1.(App)
+	if appResult1.List.Cursor != 0 {
+		t.Fatalf("expected cursor to remain 0 when scrolling over list, got %d", appResult1.List.Cursor)
+	}
+
+	// 2. Send WheelDown over Preview Pane (X >= dividerX) - preview viewport MUST scroll down
+	wheelDownPreview := tea.MouseMsg{
+		X:      dividerX + 5,
+		Button: tea.MouseButtonWheelDown,
+	}
+	updated2, _ := appResult1.Update(wheelDownPreview)
+	appResult2 := updated2.(App)
+	if appResult2.Preview.Viewport.YOffset <= 0 {
+		t.Fatalf("expected preview viewport YOffset to increase on WheelDown, got %d", appResult2.Preview.Viewport.YOffset)
+	}
+
+	// 3. Send WheelUp over Preview Pane - preview viewport MUST scroll back up
+	wheelUpPreview := tea.MouseMsg{
+		X:      dividerX + 5,
+		Button: tea.MouseButtonWheelUp,
+	}
+	updated3, _ := appResult2.Update(wheelUpPreview)
+	appResult3 := updated3.(App)
+	if appResult3.Preview.Viewport.YOffset != 0 {
+		t.Fatalf("expected preview viewport YOffset to return to 0 on WheelUp, got %d", appResult3.Preview.Viewport.YOffset)
 	}
 }
 
