@@ -1,0 +1,114 @@
+<mxfile host="Electron" modified="2026-09-23T19:07:00.000Z" agent="Antigravity/1.0" version="21.0.0" type="device">
+  <diagram id="deepmd-arch" name="deepmd Architecture">
+    <mxGraphModel dx="1200" dy="800" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        
+        <!-- Header / Title -->
+        <mxCell id="title" value="deepmd: Single-Binary Markdown Explorer &amp; Reader Architecture" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=20;fontStyle=1;fontColor=#00FFAF;" vertex="1" parent="1">
+          <mxGeometry x="250" y="20" width="670" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- Group: CLI & Entrypoint -->
+        <mxCell id="grp-cli" value="CLI Entrypoint &amp; Flags (cmd/deepmd/main.go)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#1E1E2E;strokeColor=#45475A;fontColor=#CDD6F4;fontSize=14;fontStyle=1;startSize=30;" vertex="1" parent="1">
+          <mxGeometry x="40" y="90" width="280" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="cli-args" value="Arguments &amp; Flags&#xa;• path (default: . , max-depth: 5)&#xa;• -p / --dump (ANSI stdout)&#xa;• -l / --list (file list)&#xa;• --theme (dark/light/dracula)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#313244;strokeColor=#6C7086;fontColor=#F5E0DC;align=left;spacingLeft=10;" vertex="1" parent="grp-cli">
+          <mxGeometry x="20" y="50" width="240" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="cli-dispatch" value="Dispatch Execution Mode&#xa;Direct File | Dump ANSI | Interactive TUI" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#89B4FA;strokeColor=#1E66F5;fontColor=#11111B;fontStyle=1;align=center;" vertex="1" parent="grp-cli">
+          <mxGeometry x="20" y="155" width="240" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Group: Discovery & Search Engines -->
+        <mxCell id="grp-finder" value="Core Engines (internal/finder)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#1E1E2E;strokeColor=#45475A;fontColor=#CDD6F4;fontSize=14;fontStyle=1;startSize=30;" vertex="1" parent="1">
+          <mxGeometry x="360" y="90" width="370" height="340" as="geometry" />
+        </mxCell>
+        <mxCell id="walker" value="Pure Go File Discovery (walker.go)&#xa;• charlievieth/fastwalk (concurrent)&#xa;• Depth &lt;= 5 enforcement&#xa;• sabhiram/go-gitignore&#xa;• Skips: .git, node_modules, vendor" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#A6E3A1;strokeColor=#40A02B;fontColor=#11111B;fontStyle=1;align=left;spacingLeft=10;" vertex="1" parent="grp-finder">
+          <mxGeometry x="20" y="50" width="330" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="fuzzy" value="Pure Go Fuzzy Finder (fuzzy.go)&#xa;• junegunn/fzf/src/algo (FuzzyMatchV2)&#xa;• Reusable Slab &amp; Chars allocation&#xa;• Sub-millisecond path ranking" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F9E2AF;strokeColor=#DF8E1D;fontColor=#11111B;fontStyle=1;align=left;spacingLeft=10;" vertex="1" parent="grp-finder">
+          <mxGeometry x="20" y="145" width="330" height="80" as="geometry" />
+        </mxCell>
+        <mxCell id="content-grep" value="Streaming In-File Grep (content.go)&#xa;• bufio.Scanner line-by-line grep&#xa;• 2MB file size ceiling (anti-OOM)&#xa;• Line number &amp; snippet extraction" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#FAB387;strokeColor=#FE640B;fontColor=#11111B;fontStyle=1;align=left;spacingLeft=10;" vertex="1" parent="grp-finder">
+          <mxGeometry x="20" y="240" width="330" height="80" as="geometry" />
+        </mxCell>
+
+        <!-- Group: Glamour Renderer -->
+        <mxCell id="grp-render" value="Terminal Renderer (internal/render)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#1E1E2E;strokeColor=#45475A;fontColor=#CDD6F4;fontSize=14;fontStyle=1;startSize=30;" vertex="1" parent="1">
+          <mxGeometry x="770" y="90" width="360" height="220" as="geometry" />
+        </mxCell>
+        <mxCell id="glamour" value="Charmbracelet Glamour (glamour.go)&#xa;• glamour.NewTermRenderer&#xa;• Word-wrap to dynamic pane width&#xa;• Truncation notice on 64KB/500-lines&#xa;• 10MB document safety ceiling" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#CBA6F7;strokeColor=#8839EF;fontColor=#11111B;fontStyle=1;align=left;spacingLeft=10;" vertex="1" parent="grp-render">
+          <mxGeometry x="20" y="50" width="320" height="90" as="geometry" />
+        </mxCell>
+        <mxCell id="render-guard" value="TruncateString Helper &amp; Bounds Guard&#xa;Safe clamping: lp.Width-6 &gt; 0, zero negative bounds" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F38BA8;strokeColor=#D20F39;fontColor=#11111B;fontStyle=1;align=center;" vertex="1" parent="grp-render">
+          <mxGeometry x="20" y="155" width="320" height="45" as="geometry" />
+        </mxCell>
+
+        <!-- Group: Bubble Tea TUI Framework -->
+        <mxCell id="grp-tui" value="Interactive Bubble Tea TUI (internal/tui)" style="swimlane;whiteSpace=wrap;html=1;fillColor=#1E1E2E;strokeColor=#45475A;fontColor=#CDD6F4;fontSize=14;fontStyle=1;startSize=30;" vertex="1" parent="1">
+          <mxGeometry x="40" y="470" width="1090" height="300" as="geometry" />
+        </mxCell>
+        
+        <!-- App Coordinator -->
+        <mxCell id="tui-app" value="Root Model Coordinator (app.go)&#xa;• tea.Model (Init, Update, View)&#xa;• Window size guard (&lt;60x14)&#xa;• [Tab] Toggle Active Focus&#xa;• ScoutCache (~/.deepmd/cache)&#xa;• Background Re-scout on startup" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#89DCEB;strokeColor=#04A5E5;fontColor=#11111B;fontStyle=1;align=left;spacingLeft=10;" vertex="1" parent="grp-tui">
+          <mxGeometry x="20" y="50" width="280" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- List Pane -->
+        <mxCell id="tui-list" value="Left Pane: List &amp; Search (list_pane.go)&#xa;• textinput.Model (live filter)&#xa;• Mode: Path Fuzzy vs Content Grep&#xa;• Safe TruncateString line formatter&#xa;• [Ctrl+F] toggle mode • [Ctrl+R] rescan" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#B4BEFE;strokeColor=#7287FD;fontColor=#11111B;fontStyle=1;align=left;spacingLeft=10;" vertex="1" parent="grp-tui">
+          <mxGeometry x="340" y="50" width="330" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- Preview Pane -->
+        <mxCell id="tui-preview" value="Right Pane: Live Preview (preview_pane.go)&#xa;• viewport.Model (Active on [Tab])&#xa;• Scrollable via j/k, d/u, arrows on Tab&#xa;• Instant Glamour ANSI preview&#xa;• Truncated preview alert" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#F5C2E7;strokeColor=#EA76CB;fontColor=#11111B;fontStyle=1;align=left;spacingLeft=10;" vertex="1" parent="grp-tui">
+          <mxGeometry x="710" y="50" width="350" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- Reader Pane -->
+        <mxCell id="tui-reader" value="Full-Screen Reader (reader_pane.go) — Entered via [Enter]&#xa;• Full-width viewport pager with vim scroll (j/k, d/u, g/G)&#xa;• In-document / regex search with n / N match navigation&#xa;• [Esc] / [q] returns to dual-pane with preserved cursor offset" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#94E2D5;strokeColor=#179299;fontColor=#11111B;fontStyle=1;align=center;" vertex="1" parent="grp-tui">
+          <mxGeometry x="340" y="190" width="720" height="85" as="geometry" />
+        </mxCell>
+
+        <!-- Connectors -->
+        <mxCell id="edge1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#89B4FA;strokeWidth=2;" edge="1" parent="1" source="cli-dispatch" target="walker">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#A6E3A1;strokeWidth=2;" edge="1" parent="1" source="walker" target="tui-app">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="525" y="445" />
+              <mxPoint x="180" y="445" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge3" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#89DCEB;strokeWidth=2;" edge="1" parent="1" source="tui-app" target="tui-list">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="edge4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#89DCEB;strokeWidth=2;" edge="1" parent="1" source="tui-app" target="tui-preview">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="200" y="650" />
+              <mxPoint x="700" y="650" />
+              <mxPoint x="700" y="580" />
+              <mxPoint x="710" y="580" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge5" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#CBA6F7;strokeWidth=2;" edge="1" parent="1" source="glamour" target="tui-preview">
+          <mxGeometry relative="1" as="geometry">
+            <Array as="points">
+              <mxPoint x="930" y="400" />
+              <mxPoint x="930" y="400" />
+            </Array>
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="edge6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;strokeColor=#B4BEFE;strokeWidth=2;" edge="1" parent="1" source="tui-list" target="tui-reader">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

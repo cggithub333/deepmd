@@ -1,0 +1,201 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta http-equiv="X-UA-Compatible" content="ie=edge" />
+<title>Markmap</title>
+<style>
+* {
+  margin: 0;
+  padding: 0;
+}
+html {
+  font-family: ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji',
+    'Segoe UI Emoji', 'Segoe UI Symbol', 'Noto Color Emoji';
+}
+#mindmap {
+  display: block;
+  width: 100vw;
+  height: 100vh;
+}
+.markmap-dark {
+  background: #27272a;
+  color: white;
+}
+
+/* Enhanced Modern Styling for Rich Markmap Nodes */
+table {
+  border-collapse: collapse;
+  margin: 8px 0;
+  font-size: 13px;
+  line-height: 1.5;
+  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid rgba(125, 125, 125, 0.35);
+  background: rgba(125, 125, 125, 0.08);
+}
+th, td {
+  border: 1px solid rgba(125, 125, 125, 0.35);
+  padding: 6px 12px;
+  text-align: left;
+}
+th {
+  background: rgba(125, 125, 125, 0.25);
+  font-weight: 600;
+}
+tr:nth-child(even) {
+  background: rgba(125, 125, 125, 0.04);
+}
+.markmap-dark table {
+  border-color: #52525b;
+  background: #18181b;
+}
+.markmap-dark th {
+  background: #27272a;
+  border-color: #52525b;
+  color: #f4f4f5;
+}
+.markmap-dark td {
+  border-color: #3f3f46;
+  color: #e4e4e7;
+}
+pre {
+  background: #18181b;
+  color: #f4f4f5;
+  padding: 10px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  margin: 6px 0;
+  border: 1px solid #3f3f46;
+  overflow-x: auto;
+  max-width: 480px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+}
+code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+:not(pre) > code {
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  padding: 2px 6px;
+  border-radius: 4px;
+  font-size: 0.9em;
+  font-weight: 500;
+}
+a {
+  color: #38bdf8;
+  text-decoration: none;
+  font-weight: 500;
+}
+a:hover {
+  text-decoration: underline;
+  color: #7dd3fc;
+}
+blockquote {
+  border-left: 3px solid #38bdf8;
+  padding: 4px 10px;
+  margin: 6px 0;
+  background: rgba(56, 189, 248, 0.08);
+  border-radius: 0 6px 6px 0;
+  font-style: italic;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.markmap-dark blockquote {
+  background: rgba(56, 189, 248, 0.12);
+  color: #e4e4e7;
+}
+img {
+  max-width: 100%;
+  max-height: 240px;
+  height: auto;
+  border-radius: 8px;
+  vertical-align: middle;
+  margin: 6px 0;
+  display: block;
+}
+/* Flowcharts & diagrams need high contrast white card in dark mode */
+img[src*=".svg"]:not([src*="shield"]):not([src*="badge"]) {
+  background: #ffffff;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(125, 125, 125, 0.35);
+  box-shadow: 0 4px 14px rgba(0,0,0,0.25);
+  max-height: 280px;
+  box-sizing: border-box;
+}
+/* Author portrait cards */
+img[src*="feynman.jpg"], img[src*="feynman"] {
+  max-height: 170px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+  border: 1px solid rgba(125, 125, 125, 0.35);
+}
+/* Inline Badges & Shields */
+img[src*="shields.io"], img[src*="badge"], img[src*="favicon"] {
+  max-height: 24px;
+  display: inline-block;
+  margin: 2px 4px;
+  background: transparent;
+  padding: 0;
+  border: none;
+  box-shadow: none;
+}
+svg[viewBox="0 -3 24 24"] {
+  fill: #38bdf8;
+  vertical-align: middle;
+  margin-right: 4px;
+}
+
+</style>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/markmap-toolbar@0.18.12/dist/style.css">
+</head>
+<body>
+<svg id="mindmap"></svg>
+<script src="https://cdn.jsdelivr.net/npm/d3@7.9.0/dist/d3.min.js"></script><script src="https://cdn.jsdelivr.net/npm/markmap-view@0.18.12/dist/browser/index.js"></script><script src="https://cdn.jsdelivr.net/npm/markmap-toolbar@0.18.12/dist/index.js"></script><script>((r) => {
+          setTimeout(r);
+        })(() => {
+  const { markmap, mm } = window;
+  const toolbar = new markmap.Toolbar();
+  toolbar.attach(mm);
+  const el = toolbar.render();
+  el.setAttribute("style", "position:absolute;bottom:20px;right:20px");
+  document.body.append(el);
+})</script><script>((getMarkmap, getOptions, root2, jsonOptions) => {
+              const markmap = getMarkmap();
+              window.mm = markmap.Markmap.create(
+                "svg#mindmap",
+                (getOptions || markmap.deriveOptions)(jsonOptions),
+                root2
+              );
+              if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+                document.documentElement.classList.add("markmap-dark");
+              }
+            })(() => window.markmap,null,{"content":"BUG-01: Runtime Panic Slice Bounds Out Of Range <code>[:-9]</code>","children":[{"content":"&#x1f4a1; Feynman Mental Model &amp; Intuitive Analogy","children":[{"content":"&#x1f464; Richard Feynman Insight","children":[{"content":"\n<blockquote data-lines=\"4,5\">\n<p data-lines=\"4,5\"><em>&quot;If you cannot explain something in simple terms, you don&apos;t truly understand it.&quot;</em> &#x2014; Richard P. Feynman</p>\n</blockquote>","children":[],"payload":{"tag":"li","lines":"4,5"}}],"payload":{"tag":"li","lines":"3,5"}},{"content":"&#x1f3ed; Physical Analogy: The Fixed-Length Cookie Cutter","children":[{"content":"Imagine a machine cutter programmed to always snip 9 inches off the end of a board before trimming","children":[],"payload":{"tag":"li","lines":"6,7"}},{"content":"When given a brand-new board that is 0 inches long (or not measured yet)","children":[],"payload":{"tag":"li","lines":"7,8"}},{"content":"The mechanical blade tries to reach behind the starting mark into negative space (<code>-9 inches</code>)","children":[],"payload":{"tag":"li","lines":"8,9"}},{"content":"The gears jam and the entire factory line shuts down instantly","children":[],"payload":{"tag":"li","lines":"9,10"}}],"payload":{"tag":"li","lines":"5,10"}},{"content":"&#x1f4a1; Plain-English Aha!","children":[{"content":"<code>ListPane</code> starts with <code>Width: 0</code> before the terminal reports its size","children":[],"payload":{"tag":"li","lines":"11,12"}},{"content":"When cutting string <code>line[:lp.Width-9]</code>, Go calculates <code>line[:-9]</code> which crashes immediately","children":[],"payload":{"tag":"li","lines":"12,13"}}],"payload":{"tag":"li","lines":"10,13"}},{"content":"&#x2699;&#xfe0f; Step-by-Step Mechanics","children":[{"content":"1. User launches <code>deepmd</code> in any terminal","children":[],"payload":{"tag":"li","lines":"14,15","listIndex":1}},{"content":"2. Bubble Tea starts runtime and triggers initial <code>View()</code> render frame","children":[],"payload":{"tag":"li","lines":"15,16","listIndex":2}},{"content":"3. <code>ListPane.Width</code> is uninitialized (<code>0</code>) because <code>tea.WindowSizeMsg</code> has not arrived yet","children":[],"payload":{"tag":"li","lines":"16,17","listIndex":3}},{"content":"4. Loop iterates over files: <code>len(line) &gt; 0 - 6</code> (<code>true</code>)","children":[],"payload":{"tag":"li","lines":"17,18","listIndex":4}},{"content":"5. Expression evaluates <code>line[:0-9]</code> &#x2794; <code>line[:-9]</code> &#x2794; Go panics with <code>slice bounds out of range</code>","children":[],"payload":{"tag":"li","lines":"18,19","listIndex":5}}],"payload":{"tag":"li","lines":"13,19"}},{"content":"&#x26a0;&#xfe0f; Why Naive Fixes Fail","children":[{"content":"Only adding <code>if lp.Width &gt; 0</code> leaves narrow terminals (&lt;9 cols) vulnerable to negative bounds","children":[],"payload":{"tag":"li","lines":"20,21"}},{"content":"Only fixing line 182 leaves content search or other components unaligned","children":[],"payload":{"tag":"li","lines":"21,22"}}],"payload":{"tag":"li","lines":"19,22"}},{"content":"&#x2696;&#xfe0f; Brutally Honest Trade-off","children":[{"content":"Defensive string slicing helper requires slight refactor","children":[],"payload":{"tag":"li","lines":"23,24"}},{"content":"But eliminates 100% of negative slice boundary panics across all UI states","children":[],"payload":{"tag":"li","lines":"24,26"}}],"payload":{"tag":"li","lines":"22,26"}}],"payload":{"tag":"h2","lines":"2,3"}},{"content":"&#x1f41b; Problem &amp; Symptoms","children":[{"content":"&#x1f4a5; Immediate Runtime Crash","children":[{"content":"<code>panic: runtime error: slice bounds out of range [:-9]</code>","children":[],"payload":{"tag":"li","lines":"28,29"}},{"content":"Application exits abruptly, restoring terminal state","children":[],"payload":{"tag":"li","lines":"29,30"}}],"payload":{"tag":"li","lines":"27,30"}},{"content":"&#x1f4cd; Failure Location","children":[{"content":"<code>internal/tui/list_pane.go:182</code> in <code>ListPane.View()</code>","children":[],"payload":{"tag":"li","lines":"31,32"}},{"content":"Called from <code>internal/tui/app.go:204</code> in <code>App.View()</code>","children":[],"payload":{"tag":"li","lines":"32,33"}}],"payload":{"tag":"li","lines":"30,33"}},{"content":"&#x1f50d; Trigger Condition","children":[{"content":"Occurs on any repository launch where initial frame renders before <code>tea.WindowSizeMsg</code>","children":[],"payload":{"tag":"li","lines":"34,35"}},{"content":"Reproducible whenever <code>ListPane.Width == 0</code> or <code>ListPane.Width &lt; 9</code>","children":[],"payload":{"tag":"li","lines":"35,37"}}],"payload":{"tag":"li","lines":"33,37"}}],"payload":{"tag":"h2","lines":"26,27"}},{"content":"&#x1f3af; Impact Analysis","children":[{"content":"&#x1f6ab; Zero Usability on Launch","children":[{"content":"Users cannot enter the interactive TUI","children":[],"payload":{"tag":"li","lines":"39,40"}},{"content":"Immediate failure on first run in any directory","children":[],"payload":{"tag":"li","lines":"40,41"}}],"payload":{"tag":"li","lines":"38,41"}},{"content":"&#x1f4c9; Developer Experience","children":[{"content":"High friction; CLI feels fragile despite passing unit tests","children":[],"payload":{"tag":"li","lines":"42,43"}},{"content":"Unit tests mocked <code>WindowSizeMsg</code> and never tested initial uninitialized frame render","children":[],"payload":{"tag":"li","lines":"43,45"}}],"payload":{"tag":"li","lines":"41,45"}}],"payload":{"tag":"h2","lines":"37,38"}},{"content":"&#x1f6e0;&#xfe0f; Proposed Solution Options","children":[{"content":"&#x1f947; Option A: Comprehensive Defensive Helper &amp; Default Size (Recommended)","children":[{"content":"1. Safe Slicing: Create <code>truncateString(s string, maxWidth int)</code> with <code>maxWidth &lt;= 3</code> edge cases","children":[],"payload":{"tag":"li","lines":"47,48","listIndex":1}},{"content":"2. Initial Dimensions: In <code>NewApp()</code>, invoke <code>list.SetSize(layout.LeftWidth-2, layout.LeftHeight)</code>","children":[],"payload":{"tag":"li","lines":"48,49","listIndex":2}},{"content":"3. Guard: Return full string or empty safely if <code>lp.Width &lt; 10</code>","children":[],"payload":{"tag":"li","lines":"49,50","listIndex":3}},{"content":"4. Unit Test: Add regression test asserting <code>ListPane.View()</code> does not panic with <code>Width: 0</code>","children":[],"payload":{"tag":"li","lines":"50,51","listIndex":4}},{"content":"&#x2705; Pros: Bulletproof against zero/negative/tiny terminal dimensions, zero chance of crash","children":[],"payload":{"tag":"li","lines":"51,52"}},{"content":"&#x26a0;&#xfe0f; Cons: 15 additional lines of defensive code","children":[],"payload":{"tag":"li","lines":"52,53"}}],"payload":{"tag":"li","lines":"46,53"}},{"content":"&#x1f948; Option B: Inline Slicing Clamp Only","children":[{"content":"Simple inline fix: <code>if lp.Width &gt; 9 { maxLen := max(0, lp.Width-9); line = line[:maxLen] + &quot;...&quot; }</code>","children":[],"payload":{"tag":"li","lines":"54,55"}},{"content":"&#x2705; Pros: Quickest 3-line change","children":[],"payload":{"tag":"li","lines":"55,56"}},{"content":"&#x26a0;&#xfe0f; Cons: Does not initialize <code>ListPane.Width</code> at startup; displays squished/truncated dots on first frame","children":[],"payload":{"tag":"li","lines":"56,57"}}],"payload":{"tag":"li","lines":"53,57"}},{"content":"&#x1f949; Option C: Defer Initial Frame Render","children":[{"content":"In <code>App.View()</code>, return &quot;Loading...&quot; if <code>a.Layout.Width == 0 || a.List.Width == 0</code>","children":[],"payload":{"tag":"li","lines":"58,59"}},{"content":"&#x2705; Pros: Completely prevents rendering uninitialized layout","children":[],"payload":{"tag":"li","lines":"59,60"}},{"content":"&#x26a0;&#xfe0f; Cons: May cause a split-second flash of loading text on startup","children":[],"payload":{"tag":"li","lines":"60,61"}}],"payload":{"tag":"li","lines":"57,61"}}],"payload":{"tag":"h2","lines":"45,46"}}],"payload":{"tag":"h1","lines":"0,1"}},null)</script>
+
+<script>
+// Ensure all hyperlinks open in a new tab (_blank)
+document.addEventListener('DOMContentLoaded', () => {
+  const forceNewTab = () => {
+    document.querySelectorAll('a').forEach(el => {
+      if (!el.getAttribute('target') || el.getAttribute('target') === '_self') {
+        el.setAttribute('target', '_blank');
+        el.setAttribute('rel', 'noopener noreferrer');
+      }
+    });
+  };
+  forceNewTab();
+  const observer = new MutationObserver(forceNewTab);
+  observer.observe(document.body, { childList: true, subtree: true });
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a');
+    if (a && a.href && (!a.target || a.target === '_self')) {
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
+    }
+  }, true);
+});
+</script>
+
+</body>
+</html>

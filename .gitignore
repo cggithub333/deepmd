@@ -1,0 +1,14 @@
+# Binaries and build artifacts
+bin/
+deepmd
+*.exe
+*.test
+*.prof
+
+# OS & Editor
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
